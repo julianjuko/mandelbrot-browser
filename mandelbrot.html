@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mandelbrot Set with WebGL</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+    <script>
+      const canvas = document.getElementById("canvas");
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+
+      const gl = canvas.getContext("webgl2");
+
+      if (!gl) {
+        alert(
+          "WebGL 2 is not available in your browser. Please try another browser."
+        );
+      }
+
+      const vertexShaderSource = `
+            precision mediump float;
+            attribute vec2 a_position;
+            varying vec2 v_position;
+            void main() {
+                v_position = a_position;
+                gl_Position = vec4(a_position, 0.0, 1.0);
+            }
+        `;
+
+      const fragmentShaderSource = `
+            precision highp float;
+            uniform vec2 resolution;
+            uniform vec2 offset;
+            uniform float zoom;
+            uniform int maxIterations;
+
+            vec3 hsl2rgb(float h, float s, float l) {
+                vec3 rgb = clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+                return l + s * (rgb - 0.5) * (1.0 - abs(2.0 * l - 1.0));
+            }
+
+            void main() {
+                vec2 coord = (gl_FragCoord.xy - 0.5 * resolution) / zoom + offset;
+
+                vec2 z = coord;
+                int iterations = 0;
+                for (int i = 0; i < 1000; i++) {
+                    if (iterations >= maxIterations) break;
+                    float x = (z.x * z.x - z.y * z.y) + coord.x;
+                    float y = (z.y * z.x + z.x * z.y) + coord.y;
+                    if (x * x + y * y > 4.0) break;
+                    z = vec2(x, y);
+                    iterations++;
+                }
+
+                float colorValue = float(iterations) / float(maxIterations);
+                float h = mod(float(iterations) * 0.05 + zoom * 0.001, 360.0);
+                float s = 0.6;
+                float l = mix(0.6, 0.8, colorValue);
+                vec3 color = hsl2rgb(h / 360.0, s, l);
+                if (iterations == maxIterations) {
+                    color = vec3(0.0);
+                }
+                gl_FragColor = vec4(color, 1.0);
+            }
+        `;
+
+      function createShader(gl, type, source) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        const success = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
+        if (success) {
+          return shader;
+        }
+        console.error(gl.getShaderInfoLog(shader));
+        gl.deleteShader(shader);
+      }
+
+      function createProgram(gl, vertexShader, fragmentShader) {
+        const program = gl.createProgram();
+        gl.attachShader(program, vertexShader);
+        gl.attachShader(program, fragmentShader);
+        gl.linkProgram(program);
+        const success = gl.getProgramParameter(program, gl.LINK_STATUS);
+        if (success) {
+          return program;
+        }
+        console.error(gl.getProgramInfoLog(program));
+        gl.deleteProgram(program);
+      }
+
+      const vertexShader = createShader(
+        gl,
+        gl.VERTEX_SHADER,
+        vertexShaderSource
+      );
+      const fragmentShader = createShader(
+        gl,
+        gl.FRAGMENT_SHADER,
+        fragmentShaderSource
+      );
+      const program = createProgram(gl, vertexShader, fragmentShader);
+
+      const positionAttributeLocation = gl.getAttribLocation(
+        program,
+        "a_position"
+      );
+      const positionBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+      const positions = [-1, -1, 1, -1, -1, 1, 1, 1];
+      gl.bufferData(
+        gl.ARRAY_BUFFER,
+        new Float32Array(positions),
+        gl.STATIC_DRAW
+      );
+
+      let offset = [0, 0];
+      let zoom = 200.0;
+      let maxIterations = 1000;
+
+      function drawScene() {
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        gl.clearColor(0, 0, 0, 1);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        gl.useProgram(program);
+        gl.enableVertexAttribArray(positionAttributeLocation);
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.vertexAttribPointer(
+          positionAttributeLocation,
+          2,
+          gl.FLOAT,
+          false,
+          0,
+          0
+        );
+
+        const resolutionUniformLocation = gl.getUniformLocation(
+          program,
+          "resolution"
+        );
+        gl.uniform2f(resolutionUniformLocation, canvas.width, canvas.height);
+
+        const offsetUniformLocation = gl.getUniformLocation(program, "offset");
+        gl.uniform2f(offsetUniformLocation, offset[0], offset[1]);
+
+        const zoomUniformLocation = gl.getUniformLocation(program, "zoom");
+        gl.uniform1f(zoomUniformLocation, zoom);
+
+        const maxIterationsUniformLocation = gl.getUniformLocation(
+          program,
+          "maxIterations"
+        );
+        gl.uniform1i(maxIterationsUniformLocation, maxIterations);
+
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        requestAnimationFrame(drawScene);
+      }
+
+      drawScene();
+
+      let mouseDown = false;
+      let prevMousePos = [0, 0];
+
+      canvas.addEventListener("mousedown", (event) => {
+        mouseDown = true;
+        prevMousePos = [event.clientX, event.clientY];
+      });
+
+      canvas.addEventListener("mousemove", (event) => {
+        if (!mouseDown) return;
+        const dx = (event.clientX - prevMousePos[0]) / zoom;
+        const dy = (event.clientY - prevMousePos[1]) / zoom;
+        offset[0] -= dx;
+        offset[1] += dy;
+        prevMousePos = [event.clientX, event.clientY];
+      });
+
+      canvas.addEventListener("mouseup", () => {
+        mouseDown = false;
+      });
+
+      canvas.addEventListener("wheel", (event) => {
+        event.preventDefault();
+        const scaleFactor = 1 - event.deltaY * 0.001;
+        zoom *= scaleFactor;
+      });
+
+      window.addEventListener("resize", () => {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      });
+    </script>
+  </body>
+</html>
