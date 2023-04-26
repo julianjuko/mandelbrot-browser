@@ -30,52 +30,52 @@
       }
 
       const vertexShaderSource = `
-            precision mediump float;
-            attribute vec2 a_position;
-            varying vec2 v_position;
-            void main() {
-                v_position = a_position;
-                gl_Position = vec4(a_position, 0.0, 1.0);
-            }
-        `;
+          precision mediump float;
+          attribute vec2 a_position;
+          varying vec2 v_position;
+          void main() {
+              v_position = a_position;
+              gl_Position = vec4(a_position, 0.0, 1.0);
+          }
+      `;
 
       const fragmentShaderSource = `
-            precision highp float;
-            uniform vec2 resolution;
-            uniform vec2 offset;
-            uniform float zoom;
-            uniform int maxIterations;
+          precision highp float;
+          uniform vec2 resolution;
+          uniform vec2 offset;
+          uniform float zoom;
+          uniform int maxIterations;
 
-            vec3 hsl2rgb(float h, float s, float l) {
-                vec3 rgb = clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
-                return l + s * (rgb - 0.5) * (1.0 - abs(2.0 * l - 1.0));
-            }
+          vec3 hsl2rgb(float h, float s, float l) {
+              vec3 rgb = clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+              return l + s * (rgb - 0.5) * (1.0 - abs(2.0 * l - 1.0));
+          }
 
-            void main() {
-                vec2 coord = (gl_FragCoord.xy - 0.5 * resolution) / zoom + offset;
+          void main() {
+              vec2 coord = (gl_FragCoord.xy - 0.5 * resolution) / zoom + offset;
 
-                vec2 z = coord;
-                int iterations = 0;
-                for (int i = 0; i < 1000; i++) {
-                    if (iterations >= maxIterations) break;
-                    float x = (z.x * z.x - z.y * z.y) + coord.x;
-                    float y = (z.y * z.x + z.x * z.y) + coord.y;
-                    if (x * x + y * y > 4.0) break;
-                    z = vec2(x, y);
-                    iterations++;
-                }
+              vec2 z = coord;
+              int iterations = 0;
+              for (int i = 0; i < 1000; i++) {
+                  if (iterations >= maxIterations) break;
+                  float x = (z.x * z.x - z.y * z.y) + coord.x;
+                  float y = (z.y * z.x + z.x * z.y) + coord.y;
+                  if (x * x + y * y > 4.0) break;
+                  z = vec2(x, y);
+                  iterations++;
+              }
 
-                float colorValue = float(iterations) / float(maxIterations);
-                float h = mod(float(iterations) * 0.05 + zoom * 0.001, 360.0);
-                float s = 0.6;
-                float l = mix(0.6, 0.8, colorValue);
-                vec3 color = hsl2rgb(h / 360.0, s, l);
-                if (iterations == maxIterations) {
-                    color = vec3(0.0);
-                }
-                gl_FragColor = vec4(color, 1.0);
-            }
-        `;
+              float normalizedIterations = float(iterations) / float(maxIterations);
+              float h = mod(normalizedIterations * 360.0, 360.0);
+              float s = 0.5;
+              float l = mix(0.8, 1.0, normalizedIterations);
+              vec3 color = hsl2rgb(h / 360.0, s, l);
+              if (iterations == maxIterations) {
+                  color = vec3(0.0);
+              }
+              gl_FragColor = vec4(color, 1.0);
+          }
+      `;
 
       function createShader(gl, type, source) {
         const shader = gl.createShader(type);
