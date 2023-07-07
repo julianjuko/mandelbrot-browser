@@ -2,7 +2,9 @@
 
 This is a web-based explorer for the Mandelbrot set, utilizing WebGL for high-performance rendering.
 
-## How to use
+<img width="1304" alt="image" src="https://github.com/julianjuko/mandelbrot-browser/assets/27722166/cd07cdd8-98c8-45a7-a85f-d1230699edb9">
+
+## Usage instructions (trip carefully, kids!)
 
 1. Open the HTML file in a web browser that supports WebGL 2.
 2. Click and drag to pan around the Mandelbrot set.
